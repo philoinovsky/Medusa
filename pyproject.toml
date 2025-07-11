@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "medusa"
-version = "0.2.0"
+version = "1.0.0"
 description = "Config generator for proxy tools"
 authors = [{name = "Medusa Team"}]
 license = {text = "MIT"}

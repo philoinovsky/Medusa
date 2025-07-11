@@ -9,3 +9,4 @@ err.txt
 *.so
 config.yml
 glider.conf
+repomix-output.xml

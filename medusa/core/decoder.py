@@ -1,6 +1,7 @@
 """Content decoding functionality."""
 
 import base64
+import gzip
 from typing import List, Protocol
 
 from medusa.utils.exceptions import DecodingError
@@ -71,6 +72,47 @@ class URLSafeBase64Decoder:
             raise DecodingError(f"URL-safe base64 decoding failed: {e}") from e
 
 
+class GzipDecoder:
+    """Gzip decompression decoder."""
+    
+    def decode(self, content: bytes) -> List[str]:
+        """Decode gzip compressed content.
+        
+        Args:
+            content: Gzip compressed content
+            
+        Returns:
+            List of proxy URLs
+            
+        Raises:
+            DecodingError: If gzip decompression fails
+        """
+        try:
+            # Check if content starts with gzip magic number
+            if not content.startswith(b'\x1f\x8b'):
+                raise DecodingError("Content is not gzip compressed")
+            
+            # Decompress content
+            decompressed = gzip.decompress(content)
+            logger.info(f"Successfully decompressed gzip content: {len(decompressed)} bytes")
+            
+            # Try to decode the decompressed content
+            decoder = ContentDecoder()
+            # Temporarily remove this decoder to avoid infinite recursion
+            decoder.decoders = [
+                Base64Decoder(),
+                URLSafeBase64Decoder(),
+                PlainTextDecoder(),
+            ]
+            
+            return decoder.decode(decompressed)
+            
+        except gzip.BadGzipFile as e:
+            raise DecodingError(f"Invalid gzip content: {e}") from e
+        except Exception as e:
+            raise DecodingError(f"Gzip decoding failed: {e}") from e
+
+
 class PlainTextDecoder:
     """Plain text decoder for non-encoded content."""
     
@@ -110,6 +152,7 @@ class ContentDecoder:
     def __init__(self):
         """Initialize decoder with available strategies."""
         self.decoders: List[DecoderProtocol] = [
+            GzipDecoder(),  # Try gzip first since it's a wrapper
             Base64Decoder(),
             URLSafeBase64Decoder(),
             PlainTextDecoder(),

@@ -9,4 +9,6 @@ err.txt
 *.so
 config.yml
 glider.conf
+glider5.conf
+glider8.conf
 repomix-output.xml

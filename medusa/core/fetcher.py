@@ -2,10 +2,11 @@
 
 import random
 import time
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
 from urllib.parse import urlparse
 
 import requests
+import yaml
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -297,6 +298,36 @@ class URLFetcher:
         response = self.session.get(url, headers=headers, timeout=self.timeout)
         response.raise_for_status()
         return response
+
+    def fetch_clash_config(self, url: str) -> Optional[Dict[str, Any]]:
+        """Fetch subscription as Clash YAML config to extract rules.
+
+        Args:
+            url: Subscription URL
+
+        Returns:
+            Parsed YAML dict, or None if fetch/parse fails
+        """
+        logger.info(f"Fetching Clash config from {url}")
+
+        try:
+            headers = {
+                "User-Agent": "ClashForWindows/0.20.39",
+                "Accept": "*/*",
+            }
+
+            response = self.session.get(url, headers=headers, timeout=self.timeout)
+            response.raise_for_status()
+
+            data = yaml.safe_load(response.text)
+            if isinstance(data, dict):
+                logger.info(f"Successfully parsed Clash config from {url}")
+                return data
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch Clash config from {url}: {e}")
+
+        return None
 
     def __enter__(self):
         """Context manager entry."""

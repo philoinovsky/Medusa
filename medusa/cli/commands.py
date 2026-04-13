@@ -126,7 +126,7 @@ class GenerateCommand:
             output_path: Output file path
             backend: Backend name for template
             converted_configs: List of converted proxy configurations
-            rules_path: Path to the rules file (added as rules-file= directive)
+            rules_path: Path to the rules file (added as rulefile= directive)
         """
         try:
             # Load template
@@ -141,8 +141,8 @@ class GenerateCommand:
                 # Write template
                 f.writelines(template_lines)
 
-                # Write rules-file reference
-                f.write(f"\nrules-file={rules_path}\n\n")
+                # Write rulefile reference
+                f.write(f"\nrulefile={rules_path}\n\n")
 
                 # Write converted configurations
                 for config in converted_configs:

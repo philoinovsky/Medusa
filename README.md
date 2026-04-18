@@ -1,42 +1,35 @@
 # Medusa
 
-Medusa is a modern, refactored config generator for proxy tools. It fetches subscription URLs and converts them to proxy configurations with improved security, maintainability, and extensibility.
-
-## Features
-
-- **Secure**: Eliminated `eval()` security vulnerability with proper dispatch system
-- **Modular**: Clean separation of concerns with pluggable backends
-- **Type-safe**: Full type annotations with Pydantic validation
-- **Robust**: Comprehensive error handling and logging
-- **Extensible**: Easy to add new proxy types and backends
-- **Tested**: Comprehensive test suite with pytest
+Config generator for proxy tools. Medusa fetches subscription URLs, decodes their contents, parses proxy URLs (`ss://`, `trojan://`, `anytls://`, `vmess://`, `vless://`), and renders a backend config file. Currently the Glider backend is fully wired; it also produces a companion `.rule` file with DNS nameserver policies extracted from Clash-format subscriptions.
 
 ## Installation
 
 ```bash
 pip install -e .
-```
-
-For development:
-```bash
+# with dev tools
 pip install -e ".[dev]"
 ```
 
+Python 3.8+ required.
+
 ## Usage
 
-Basic usage:
 ```bash
 medusa -o glider.conf
+medusa -o glider.conf --backend glider --verbose
+medusa -o glider.conf --config my_config.yml
 ```
 
-With custom configuration:
-```bash
-medusa -o output.conf --config my_config.yml --backend glider --verbose
-```
+Flags:
+
+- `-o, --output` — output file path (required). A `<output>.rule` file is written alongside it.
+- `--backend` — target backend (default: `glider`).
+- `--config` — config file name or absolute path (default: `config.yml`).
+- `-v, --verbose` — verbose logging.
 
 ## Configuration
 
-Create a `config.yml` file with your subscription URLs:
+Config files are resolved from `medusa/configs/` unless an absolute path is given. Minimal `config.yml`:
 
 ```yaml
 subscriptions:
@@ -44,91 +37,52 @@ subscriptions:
   - https://example.com/subscription2
 ```
 
+Each subscription URL is fetched, decoded (Gzip → Base64 → URL-safe Base64 → plain text), and the resulting proxy URLs are converted using the selected backend.
+
+## Output
+
+Running `medusa -o glider.conf` produces:
+
+- `glider.conf` — the backend template (from `medusa/templates/<backend>_template.conf`) followed by a `rulefile=glider.conf.rule` directive and one `forward=...` line per deduplicated proxy.
+- `glider.conf.rule` — `dnsserver=` / `domain=` entries built from `dns.nameserver-policy` in the Clash YAML variant of each subscription (when available).
+
+## Supported protocols
+
+| Backend | Shadowsocks | Trojan | AnyTLS | VMess           | VLESS           |
+| ------- | ----------- | ------ | ------ | --------------- | --------------- |
+| Glider  | ✅          | ✅     | ✅     | not implemented | not implemented |
+
 ## Architecture
 
-The refactored Medusa follows a clean, modular architecture:
+Pipeline: `CLI → ConfigLoader → URLFetcher → ContentDecoder → URLParser → ProxyConverter → output file` (with `RulesExtractor` producing the rules file in parallel).
 
 ```
 medusa/
-├── cli/           # Command-line interface
-├── core/          # Core functionality (fetching, parsing, converting)
-├── backends/      # Backend implementations (Glider, etc.)
-├── config/        # Configuration management
-├── utils/         # Utilities (logging, exceptions)
-└── templates/     # Configuration templates
+├── cli/        # argparse + GenerateCommand orchestrator
+├── core/       # fetcher, decoder, parser, converter, rules
+├── backends/   # BackendConverter ABC + per-backend handlers
+├── config/     # Pydantic config model + loader
+├── configs/    # default config.yml lives here
+├── templates/  # <backend>_template.conf files
+└── utils/      # logging, exceptions
 ```
 
-### Key Components
+### Extending
 
-- **URLFetcher**: Handles subscription URL fetching with retry logic
-- **ContentDecoder**: Multi-strategy content decoding (Base64, plain text)
-- **URLParser**: Validates and parses proxy URLs
-- **BackendConverter**: Pluggable backend system for different proxy tools
-- **ConfigLoader**: Configuration loading with validation
-
-## Supported Backends
-
-- **Glider** (default) - Full support
-
-## Supported Proxy Types
-
-- **Shadowsocks** (ss://) - ✅ Full support
-- **Trojan** (trojan://) - ✅ Full support  
-- **VMess** (vmess://) - 🚧 Framework ready, implementation pending
-- **VLESS** (vless://) - 🚧 Framework ready, implementation pending
+- **New backend** — subclass `BackendConverter` in `medusa/backends/`, register it in `ConverterRegistry._register_default_converters()`, and drop a `<name>_template.conf` in `medusa/templates/`.
+- **New protocol** — subclass `ProxyHandler` and add it to the backend's `_handlers` dict.
 
 ## Development
 
-### Running Tests
-
 ```bash
-pytest
-```
+pytest                                  # run tests
+pytest --cov=medusa --cov-report=html   # with coverage
 
-With coverage:
-```bash
-pytest --cov=medusa --cov-report=html
-```
-
-### Code Quality
-
-Format code:
-```bash
 black medusa/ tests/
-```
-
-Lint code:
-```bash
 ruff check medusa/ tests/
-```
-
-Type checking:
-```bash
 mypy medusa/
 ```
 
-### Adding New Backends
-
-1. Create a new backend class inheriting from `BackendConverter`
-2. Implement required methods (`name`, `supported_schemes`, `convert`)
-3. Register the backend in `ConverterRegistry`
-
-### Adding New Proxy Types
-
-1. Create a handler class inheriting from `ProxyHandler`
-2. Implement the `convert` method for your proxy type
-3. Add the handler to the appropriate backend converter
-
-## Migration from v1.x
-
-The refactored version maintains CLI compatibility while providing:
-
-- **Improved Security**: No more `eval()` usage
-- **Better Error Handling**: Graceful failure with detailed logging
-- **Enhanced Logging**: Structured logging with configurable levels
-- **Type Safety**: Full type annotations and validation
-- **Modular Design**: Easy to extend and maintain
-
 ## License
 
-MIT License
+MIT

@@ -2,13 +2,14 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence
 
 from medusa.config.loader import ConfigLoader
 from medusa.core.fetcher import URLFetcher
 from medusa.core.decoder import ContentDecoder
 from medusa.core.parser import URLParser
 from medusa.core.converter import ProxyConverter
+from medusa.core.resolver import pin_forwarder_hosts
 from medusa.core.rules import RulesExtractor
 from medusa.utils.exceptions import MedusaError
 from medusa.utils.logging import get_logger
@@ -91,9 +92,17 @@ class GenerateCommand:
                     if clash_data:
                         clash_configs.append(clash_data)
 
+            dns_records = (
+                pin_forwarder_hosts(all_converted, clash_configs)
+                if backend == "glider"
+                else []
+            )
+
             # Generate output file
             rules_path = f"{output_path}.rule"
-            self._write_output_file(output_path, backend, all_converted, rules_path)
+            self._write_output_file(
+                output_path, backend, all_converted, rules_path, dns_records
+            )
 
             # Generate rules file
             self._write_rules_file(rules_path, clash_configs)
@@ -119,6 +128,7 @@ class GenerateCommand:
         backend: str,
         converted_configs: List[str],
         rules_path: str,
+        dns_records: Sequence[str] = (),
     ) -> None:
         """Write output configuration file.
 
@@ -127,6 +137,7 @@ class GenerateCommand:
             backend: Backend name for template
             converted_configs: List of converted proxy configurations
             rules_path: Path to the rules file (added as rulefile= directive)
+            dns_records: dnsrecord= lines, written between template and rulefile=
         """
         try:
             # Load template
@@ -140,6 +151,13 @@ class GenerateCommand:
             with open(output_file, "w", encoding="utf-8") as f:
                 # Write template
                 f.writelines(template_lines)
+
+                if dns_records:
+                    f.write(
+                        "\n\n# Forwarder hosts resolved by the subscription's "
+                        "nameserver-policy DNS at generation time\n"
+                    )
+                    f.writelines(f"{record}\n" for record in dns_records)
 
                 # Write rulefile reference
                 f.write(f"\nrulefile={rules_path}\n\n")

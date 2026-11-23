@@ -44,6 +44,10 @@ Each subscription URL is fetched, decoded (Gzip → Base64 → URL-safe Base64 �
 Running `medusa -o glider.conf` produces:
 
 - `glider.conf` — the backend template (from `medusa/templates/<backend>_template.conf`) followed by a `rulefile=glider.conf.rule` directive and one `forward=...` line per deduplicated proxy.
+  Between the template and `rulefile=` it also pins `dnsrecord=<host>/<ip>` for each forwarder host that a
+  `nameserver-policy` covers, resolved through that policy's server (DoH `host/path` or `https://…`, or UDP
+  `ip[:port]`), because glider cannot query DoH itself and rule files do not accept `dnsrecord`. A host that
+  fails to resolve is logged and skipped.
 - `glider.conf.rule` — `dnsserver=` / `domain=` entries built from `dns.nameserver-policy` in the Clash YAML variant of each subscription (when available).
 
 ## Supported protocols
